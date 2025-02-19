@@ -3,7 +3,7 @@ Set up for GPU testing
 Calculate SHAP values on GPU for massive performance boost
 """
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error  # , root_mean_squared_error
+from sklearn.metrics import roc_auc_score, precision_recall_curve
 from math import sqrt
 import xgboost as xgb
 import pandas as pd
@@ -33,7 +33,7 @@ rh_f = rh.to_frame('rh')
 
 dfc = pd.concat([df, rh_f], axis=1)
 
-y = dfc["dNBR"]
+y = dfc['prob']
 x = dfc[["pre", "LC", "46_clm", "tpi", "43_clm", "34_clm", "45_clm", "VS", "WE", "24_clm", "37_clm", "49_clm",
          "Aspect", "33_clm", "39_clm", "38_clm", "40_clm", "50_clm", "7_clm", "32_clm", "44_clm", "36_clm", "rh",
          "DAH"]]
@@ -78,26 +78,17 @@ regressor = xgb.train(params=params, dtrain=dtrain, num_boost_round=5000, early_
                       evals=[(dtrain, "train"), (d_val, "val")])
 
 print("Save Model")
-print(regressor.best_iteration)
 # regressor.save_model("D:/Wildfire_Results_v7/xgb_fine_tune.json")
 
 predictions = regressor.predict(d_val)
 
-# Calculate MSE
-mse = mean_squared_error(y_val, predictions)
-print('Mean Squared Error: ', mse)
+# Calculate roc_auc_score
+auc = roc_auc_score(y_val, predictions)
+print('ROC AUC: ', auc)
 
-# Val %VE (Should be same as r2)
-VEV = (1 - (mse / (y_val.var()))) * 100
-print('%VE: ', VEV)
-
-# Calculate RMSE
-rmse = sqrt(mse)
-print('Root Mean Squared Error: ', rmse)
-
-# Val %RMSE
-P_RMSE = (abs(rmse / (y_val.mean())) * 100)
-print('% RMSE: ', P_RMSE)
+# Calculate precision_recall_curve
+prc = precision_recall_curve(y_val, predictions)
+print('Precision-Recall: ', prc)
 """
 print("Run Explainer")
 shap_values = regressor.predict(d_val, pred_contribs=True)

@@ -72,10 +72,14 @@ df = df[df.LC != 31]
 df = df[df.LC != 32]
 
 # Remove unburned rows
-df = df[df.dNBR < -100]
 df.dNBR = df.dNBR.multiply(-1)
-print(df['dNBR'].mean())
 
+df['prob'] = np.where(
+    df['dNBR'] < 100, 0, np.where(
+        df['dNBR'] > 100, 1, -1))
+
+print(df['dNBR'].mean())
+"""
 # reduced with xy
 todrop = ['x', 'y', '24_clm', '25_clm', '26_clm', '27_clm', '29_clm', '2_clm', '32_clm', '37_clm', 'twi',
           '3_clm', '40_clm', '42_clm', '44_clm', '45_clm', '4_clm', '5_clm', '6_clm', '7_clm', '49_clm']
@@ -94,7 +98,7 @@ dfr = df.drop(tdrop, axis=1).reset_index(drop=True)
 
 dfc = pd.concat([dfr, permutated], axis=1)
 # dfc.to_csv(perm_path, index=False)
-
+"""
 # big no xy
 todrop = ['x', 'y']
 perm = df.drop(todrop, axis=1)

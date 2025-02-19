@@ -44,8 +44,8 @@ df_clean = dfc.dropna()
 print(dfc.shape)
 print(dfc.columns)
 
-y_data = df_clean["dNBR"].to_numpy()
-x_data = df_clean.drop("dNBR", axis=1).to_numpy()
+y_data = df_clean['prob'].to_numpy()
+x_data = df_clean.drop('prob', axis=1).to_numpy()
 
 select_function = SelectNonCollinear(0.5, scoring=f_regression)
 select_function.fit(X=x_data, y=y_data)
