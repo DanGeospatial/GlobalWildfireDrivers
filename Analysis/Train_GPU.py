@@ -10,7 +10,7 @@ import pandas as pd
 import shap
 import numpy as np
 
-v3_059 = "D:/Wildfire_Datasets_v7/perm_full_wildfire_dataset.csv"
+v3_059 = "probability_wildfire_dataset.csv"
 
 train_ratio = 0.60
 validation_ratio = 0.20

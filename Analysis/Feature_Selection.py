@@ -23,7 +23,7 @@ from sklearn.feature_selection import f_regression, mutual_info_regression
 import pandas as pd
 import numpy as np
 
-checked_data = "D:/Wildfire_Datasets_v8/perm_full_wildfire_dataset.csv"
+checked_data = "probability_wildfire_dataset"
 df = pd.read_csv(checked_data)
 
 left_upper_rh = df['1_clm'].mul(17.269)

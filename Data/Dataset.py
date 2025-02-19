@@ -24,9 +24,7 @@ from os import scandir
 from pandas import isnull
 
 input_path = "D:/Wildfire_Compiled_v8/"
-datasets_path = "D:/Wildfire_Datasets_v8/perm_full_wildfire_dataset.csv"
-perm_path = "D:/Wildfire_Datasets_v8/perm_wildfire_dataset.csv"
-reduced_path = "D:/Wildfire_Datasets_v8/wildfire_dataset.csv"
+datasets_path = "probability_wildfire_dataset.csv"
 combined_ds = []
 
 # Merge all the csv files into one
@@ -100,7 +98,7 @@ dfc = pd.concat([dfr, permutated], axis=1)
 # dfc.to_csv(perm_path, index=False)
 """
 # big no xy
-todrop = ['x', 'y']
+todrop = ['x', 'y', 'dNBR']
 perm = df.drop(todrop, axis=1)
 permutated = perm.sample(frac=1, random_state=32).reset_index(drop=True)
 permutated.to_csv(datasets_path, index=False)
