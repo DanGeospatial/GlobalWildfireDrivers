@@ -3,14 +3,15 @@ Set up for GPU testing
 Calculate SHAP values on GPU for massive performance boost
 """
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_auc_score, precision_recall_curve
+from sklearn.metrics import roc_auc_score
 from math import sqrt
 import xgboost as xgb
 import pandas as pd
 import shap
 import numpy as np
 
-v3_059 = "probability_wildfire_dataset.csv"
+v3_059 = ("Z:/Research/Wildfire Publications/SubarcticWildfireProbability/SubarcticWildfireProbabilityCode/Data"
+          "/probability_wildfire_dataset.csv")
 
 train_ratio = 0.60
 validation_ratio = 0.20
@@ -86,9 +87,6 @@ predictions = regressor.predict(d_val)
 auc = roc_auc_score(y_val, predictions)
 print('ROC AUC: ', auc)
 
-# Calculate precision_recall_curve
-prc = precision_recall_curve(y_val, predictions)
-print('Precision-Recall: ', prc)
 """
 print("Run Explainer")
 shap_values = regressor.predict(d_val, pred_contribs=True)
