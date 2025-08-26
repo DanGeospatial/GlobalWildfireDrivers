@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import rioxarray
 import ee
 import dask
 import xarray as xr
@@ -60,7 +59,7 @@ def get_wildfire(start: datetime, end: datetime):
                                                                             geometry=country_geom, scale=100000)
     dataset_fires = fires.select(['T21_mean']).unitScale(ee.Number(minmax_fires.
     get(
-        'T21_mean_min')), ee.Number(minmax_fires.get('T21_mean_max')))
+        'T21_mean_min')).subtract(0.1), ee.Number(minmax_fires.get('T21_mean_max')))
 
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
@@ -73,9 +72,12 @@ def get_wildfire(start: datetime, end: datetime):
     return dr_fires
 
 
-def get_landcover(start: datetime, end: datetime):
+def get_landcover(start: datetime):
+    start_lc = str(start.year) + '-' + str('01') + '-' + str('01')
+    end_lc = str(start.year) + '-' + str('12') + '-' + str('31')
+
     dataset = ee.ImageCollection('MODIS/061/MCD12C1').filter(ee.Filter.date(
-        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean())
+        start_lc, end_lc)).reduce(ee.Reducer.mean())
 
     bands = ee.List(['Land_Cover_Type_3_Percent_Class_0_mean', 'Land_Cover_Type_3_Percent_Class_1_mean',
                      'Land_Cover_Type_3_Percent_Class_2_mean', 'Land_Cover_Type_3_Percent_Class_3_mean',
@@ -150,14 +152,14 @@ def get_topography(start: datetime):
 
 def slice_daily(start: datetime, end: datetime):
     merged_xr = xr.merge([get_climate(start=start, end=end), get_wildfire(start=start, end=end),
-                          get_landcover(start=start, end=end), get_topography(start=start)])
+                          get_landcover(start=start), get_topography(start=start)])
 
     return merged_xr
 
 
 if __name__=='__main__':
-    start_time = datetime.fromisoformat('2015-01-01')
-    end_time = datetime.fromisoformat('2015-01-03')
+    start_time = datetime.fromisoformat('2001-01-01')
+    end_time = datetime.fromisoformat('2016-30-10')
 
     scale = 5566
 
@@ -189,16 +191,17 @@ if __name__=='__main__':
 
         # Move the limit one day forward if we want to include the last day
         if inclusive_end:
-            limit += timedelta(days=1)
+            limit += timedelta(days=4)
 
         while cur < limit:
             # Yield the slice (start, end_of_slice)
-            yield cur, cur + timedelta(days=1)
-            cur += timedelta(days=1)
+            yield cur, cur + timedelta(days=4)
+            cur += timedelta(days=4)
 
 
     # get list of daily slices
     for day in daily_slices_gen(start_time, end_time, inclusive_end=False):
+        print(day[0].isoformat(), day[1].isoformat())
         dataset_list.append(slice_daily(start=day[0], end=day[1]))
 
     dataset_combined = xr.combine_by_coords(dataset_list)
