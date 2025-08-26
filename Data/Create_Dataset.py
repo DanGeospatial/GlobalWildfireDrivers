@@ -12,7 +12,7 @@ def clip_collection(img):
 
 def get_climate(start: datetime, end: datetime):
     dataset = ee.ImageCollection('UCSB-CHG/CHIRTS/DAILY').filter(ee.Filter.date(
-        start, end)).reduce(ee.Reducer.mean())
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean())
 
     minmax_mtmp = dataset.select(['minimum_temperature_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
                                                                             geometry=country_geom, scale=100000)
@@ -41,7 +41,8 @@ def get_climate(start: datetime, end: datetime):
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
 
-    dataset_unitscale = (ee.ImageCollection.fromImages(ee.List([dataset_mtmp, dataset_maxtmp, dataset_rh, dataset_hi]))
+    stacked = ee.Image(dataset_mtmp).addBands(dataset_maxtmp).addBands(dataset_rh).addBands(dataset_hi)
+    dataset_unitscale = (ee.ImageCollection([stacked])
                          .map(clip_collection)).map(set_time)
 
     ds = xr.open_dataset(dataset_unitscale, engine='ee')
@@ -51,7 +52,7 @@ def get_climate(start: datetime, end: datetime):
 
 def get_wildfire(start: datetime, end: datetime):
     dataset = ee.ImageCollection("FIRMS").filter(ee.Filter.date(
-        start, end)).reduce(ee.Reducer.mean()).select('T21_mean')
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('T21_mean')
 
     fires = dataset.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
 
@@ -64,7 +65,7 @@ def get_wildfire(start: datetime, end: datetime):
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
 
-    dataset_unitscale = (ee.ImageCollection.fromImages(ee.List([dataset_fires]))
+    dataset_unitscale = (ee.ImageCollection([dataset_fires])
                          .map(clip_collection)).map(set_time)
 
     dr_fires = xr.open_dataset(dataset_unitscale, engine='ee')
@@ -74,7 +75,7 @@ def get_wildfire(start: datetime, end: datetime):
 
 def get_landcover(start: datetime, end: datetime):
     dataset = ee.ImageCollection('MODIS/061/MCD12C1').filter(ee.Filter.date(
-        start, end)).reduce(ee.Reducer.mean())
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean())
 
     bands = ee.List(['Land_Cover_Type_3_Percent_Class_0_mean', 'Land_Cover_Type_3_Percent_Class_1_mean',
                      'Land_Cover_Type_3_Percent_Class_2_mean', 'Land_Cover_Type_3_Percent_Class_3_mean',
@@ -84,10 +85,10 @@ def get_landcover(start: datetime, end: datetime):
                      'Land_Cover_Type_3_Percent_Class_10_mean'])
 
     def process_lc(band):
-        lc = dataset.select(band).reproject(crs='EPSG:4326', scale=scale)
+        lc = dataset.select([band]).reproject(crs='EPSG:4326', scale=scale)
 
-        name_min = band + ee.String('_min')
-        name_max = band + ee.String('_max')
+        name_min = ee.String(band).cat(ee.String('_min'))
+        name_max = ee.String(band).cat(ee.String('_max'))
 
         minmax_lc = lc.select([band]).reduceRegion(reducer=ee.Reducer.minMax(),
                                                                                 geometry=country_geom, scale=100000)
@@ -97,12 +98,16 @@ def get_landcover(start: datetime, end: datetime):
 
         return dataset_lc
 
-    lc_bands = bands.map(process_lc)
+    comp = bands.map(process_lc)
 
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
 
-    dataset_unitscale = (ee.ImageCollection.fromImages(lc_bands)
+    stacked = (ee.Image(comp.get(0)).addBands(comp.get(1)).addBands(comp.get(2)).addBands(comp.get(3))
+               .addBands(comp.get(4)).addBands(comp.get(5)).addBands(comp.get(6)).addBands(comp.get(7))
+               .addBands(comp.get(8)).addBands(comp.get(9)).addBands(comp.get(10)))
+
+    dataset_unitscale = (ee.ImageCollection([stacked])
                          .map(clip_collection)).map(set_time)
 
     dr_lc = xr.open_dataset(dataset_unitscale, engine='ee')
@@ -119,22 +124,23 @@ def get_topography(start: datetime):
     chili = chili_path.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
     elevation = elevation_path.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
 
-    mtpi_min = mtpi.reduceRegion(reducer=ee.Reducer.min(), scale=100000)
-    mtpi_max = mtpi.reduceRegion(reducer=ee.Reducer.max(), scale=100000)
-    mtpi_norm = mtpi.unitScale(low=mtpi_min, high=mtpi_max)
+    mtpi_min = mtpi.reduceRegion(reducer=ee.Reducer.min(), geometry=country_geom, scale=100000)
+    mtpi_max = mtpi.reduceRegion(reducer=ee.Reducer.max(), geometry=country_geom, scale=100000)
+    mtpi_norm = mtpi.unitScale(low=ee.Number(mtpi_min.get('AVE')), high=ee.Number(mtpi_max.get('AVE')))
 
-    chili_min = chili.reduceRegion(reducer=ee.Reducer.min(), scale=100000)
-    chili_max = chili.reduceRegion(reducer=ee.Reducer.max(), scale=100000)
-    chili_norm = chili.unitScale(low=chili_min, high=chili_max)
+    chili_min = chili.reduceRegion(reducer=ee.Reducer.min(), geometry=country_geom, scale=100000)
+    chili_max = chili.reduceRegion(reducer=ee.Reducer.max(), geometry=country_geom, scale=100000)
+    chili_norm = chili.unitScale(low=ee.Number(chili_min.get('constant')), high=ee.Number(chili_max.get('constant')))
 
-    elevation_min = elevation.reduceRegion(reducer=ee.Reducer.min(), scale=100000)
-    elevation_max = elevation.reduceRegion(reducer=ee.Reducer.max(), scale=100000)
-    elevation_norm = elevation.unitScale(low=elevation_min, high=elevation_max)
+    elevation_min = elevation.reduceRegion(reducer=ee.Reducer.min(), geometry=country_geom, scale=100000)
+    elevation_max = elevation.reduceRegion(reducer=ee.Reducer.max(), geometry=country_geom, scale=100000)
+    elevation_norm = elevation.unitScale(low=ee.Number(elevation_min.get('dem')), high=ee.Number(elevation_max.get('dem')))
 
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
 
-    dataset_unitscale = (ee.ImageCollection.fromImages(ee.List([mtpi_norm, chili_norm, elevation_norm]))
+    stacked = ee.Image(mtpi_norm).addBands(chili_norm).addBands(elevation_norm)
+    dataset_unitscale = (ee.ImageCollection([stacked])
                          .map(clip_collection)).map(set_time)
 
     dr_topo = xr.open_dataset(dataset_unitscale, engine='ee')
@@ -150,8 +156,8 @@ def slice_daily(start: datetime, end: datetime):
 
 
 if __name__=='__main__':
-    start_time = datetime.fromisoformat('2017-01-01')
-    end_time = datetime.fromisoformat('2018-01-01')
+    start_time = datetime.fromisoformat('2015-01-01')
+    end_time = datetime.fromisoformat('2015-01-03')
 
     scale = 5566
 
@@ -191,9 +197,10 @@ if __name__=='__main__':
             cur += timedelta(days=1)
 
 
-    # usage
+    # get list of daily slices
     for day in daily_slices_gen(start_time, end_time, inclusive_end=False):
         dataset_list.append(slice_daily(start=day[0], end=day[1]))
 
     dataset_combined = xr.combine_by_coords(dataset_list)
-    xr.Dataset.to_zarr(dataset_combined, store="/mnt/d/test.zarr", mode="w-")
+    print(dataset_combined)
+    xr.Dataset.to_zarr(dataset_combined, store="/mnt/d/global_fire.zarr", mode="w-")
