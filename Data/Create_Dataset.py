@@ -151,11 +151,8 @@ def get_topography(start: datetime):
 
 
 def get_ecology(start: datetime, end: datetime):
-    dataset_Lai = ee.ImageCollection("MODIS/061/MOD15A2H").filter(ee.Filter.date(
-        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Lai_500m_mean')
-
-    dataset_fpar = ee.ImageCollection("MODIS/061/MOD15A2H").filter(ee.Filter.date(
-        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Fpar_500m_mean')
+    dataset_evi = ee.ImageCollection("MODIS/061/MOD13A2").filter(ee.Filter.date(
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('EVI_mean')
 
     dataset_et = ee.ImageCollection("CAS/IGSNRR/PML/V2_v018").filter(ee.Filter.date(
         start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Ec_mean')
@@ -167,21 +164,13 @@ def get_ecology(start: datetime, end: datetime):
         start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Es_mean')
 
 
-    lai = dataset_Lai.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
+    evi = dataset_evi.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
 
-    minmax_lai = lai.select(['Lai_500m_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+    minmax_evi = evi.select(['EVI_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
                                                                             geometry=country_geom, scale=100000)
-    dataset_lai = lai.select(['Lai_500m_mean']).unitScale(ee.Number(minmax_lai.
+    dataset_evi = evi.select(['EVI_mean']).unitScale(ee.Number(minmax_evi.
     get(
-        'Lai_500m_mean_min')), ee.Number(minmax_lai.get('Lai_500m_mean_max')))
-
-    fpar = dataset_fpar.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
-
-    minmax_fpar = fpar.select(['Fpar_500m_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
-                                                            geometry=country_geom, scale=100000)
-    dataset_fpar = fpar.select(['Fpar_500m_mean']).unitScale(ee.Number(minmax_fpar.
-    get(
-        'Fpar_500m_mean_min')), ee.Number(minmax_fpar.get('Fpar_500m_mean_max')))
+        'EVI_mean_min')), ee.Number(minmax_evi.get('EVI_mean_max')))
 
     et = dataset_et.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
 
@@ -210,7 +199,7 @@ def get_ecology(start: datetime, end: datetime):
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
 
-    stacked = ee.Image(dataset_lai).addBands(dataset_et).addBands(dataset_gpp).addBands(dataset_es).addBands(dataset_fpar)
+    stacked = ee.Image(dataset_evi).addBands(dataset_et).addBands(dataset_gpp).addBands(dataset_es)
     dataset_unitscale = (ee.ImageCollection([stacked])
                          .map(clip_collection)).map(set_time)
 
@@ -228,7 +217,7 @@ def slice_daily(start: datetime, end: datetime):
 
 if __name__=='__main__':
     start_time = datetime.fromisoformat('2001-01-01')
-    end_time = datetime.fromisoformat('2001-01-20')
+    end_time = datetime.fromisoformat('2001-02-20')
 
     scale = 5566
 
@@ -260,12 +249,12 @@ if __name__=='__main__':
 
         # Move the limit one day forward if we want to include the last day
         if inclusive_end:
-            limit += timedelta(days=8)
+            limit += timedelta(days=14)
 
         while cur < limit:
             # Yield the slice (start, end_of_slice)
-            yield cur, cur + timedelta(days=8)
-            cur += timedelta(days=8)
+            yield cur, cur + timedelta(days=14)
+            cur += timedelta(days=14)
 
 
     # get list of daily slices
