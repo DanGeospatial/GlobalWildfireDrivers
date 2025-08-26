@@ -150,16 +150,85 @@ def get_topography(start: datetime):
     return dr_topo
 
 
+def get_ecology(start: datetime, end: datetime):
+    dataset_Lai = ee.ImageCollection("MODIS/061/MOD15A2H").filter(ee.Filter.date(
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Lai_500m_mean')
+
+    dataset_fpar = ee.ImageCollection("MODIS/061/MOD15A2H").filter(ee.Filter.date(
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Fpar_500m_mean')
+
+    dataset_et = ee.ImageCollection("CAS/IGSNRR/PML/V2_v018").filter(ee.Filter.date(
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Ec_mean')
+
+    dataset_gpp = ee.ImageCollection("CAS/IGSNRR/PML/V2_v018").filter(ee.Filter.date(
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('GPP_mean')
+
+    dataset_es = ee.ImageCollection("CAS/IGSNRR/PML/V2_v018").filter(ee.Filter.date(
+        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Es_mean')
+
+
+    lai = dataset_Lai.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
+
+    minmax_lai = lai.select(['Lai_500m_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+                                                                            geometry=country_geom, scale=100000)
+    dataset_lai = lai.select(['Lai_500m_mean']).unitScale(ee.Number(minmax_lai.
+    get(
+        'Lai_500m_mean_min')), ee.Number(minmax_lai.get('Lai_500m_mean_max')))
+
+    fpar = dataset_fpar.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
+
+    minmax_fpar = fpar.select(['Fpar_500m_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+                                                            geometry=country_geom, scale=100000)
+    dataset_fpar = fpar.select(['Fpar_500m_mean']).unitScale(ee.Number(minmax_fpar.
+    get(
+        'Fpar_500m_mean_min')), ee.Number(minmax_fpar.get('Fpar_500m_mean_max')))
+
+    et = dataset_et.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
+
+    minmax_et = et.select(['Ec_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+                                                          geometry=country_geom, scale=100000)
+    dataset_et = et.select(['Ec_mean']).unitScale(ee.Number(minmax_et.
+    get(
+        'Ec_mean_min')), ee.Number(minmax_et.get('Ec_mean_max')))
+
+    gpp = dataset_gpp.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
+
+    minmax_gpp = gpp.select(['GPP_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+                                                    geometry=country_geom, scale=100000)
+    dataset_gpp = gpp.select(['GPP_mean']).unitScale(ee.Number(minmax_gpp.
+    get(
+        'GPP_mean_min')), ee.Number(minmax_gpp.get('GPP_mean_max')))
+
+    es = dataset_es.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
+
+    minmax_es = es.select(['Es_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+                                                    geometry=country_geom, scale=100000)
+    dataset_es = es.select(['Es_mean']).unitScale(ee.Number(minmax_es.
+    get(
+        'Es_mean_min')), ee.Number(minmax_es.get('Es_mean_max')))
+
+    def set_time(img):
+        return img.set('system:time_start', ee.Date(start.isoformat()).millis())
+
+    stacked = ee.Image(dataset_lai).addBands(dataset_et).addBands(dataset_gpp).addBands(dataset_es).addBands(dataset_fpar)
+    dataset_unitscale = (ee.ImageCollection([stacked])
+                         .map(clip_collection)).map(set_time)
+
+    dr_eco = xr.open_dataset(dataset_unitscale, engine='ee')
+
+    return dr_eco
+
+
 def slice_daily(start: datetime, end: datetime):
     merged_xr = xr.merge([get_climate(start=start, end=end), get_wildfire(start=start, end=end),
-                          get_landcover(start=start), get_topography(start=start)])
+                          get_landcover(start=start), get_topography(start=start), get_ecology(start=start, end=end)])
 
     return merged_xr
 
 
 if __name__=='__main__':
     start_time = datetime.fromisoformat('2001-01-01')
-    end_time = datetime.fromisoformat('2016-30-10')
+    end_time = datetime.fromisoformat('2001-01-20')
 
     scale = 5566
 
@@ -191,12 +260,12 @@ if __name__=='__main__':
 
         # Move the limit one day forward if we want to include the last day
         if inclusive_end:
-            limit += timedelta(days=4)
+            limit += timedelta(days=8)
 
         while cur < limit:
             # Yield the slice (start, end_of_slice)
-            yield cur, cur + timedelta(days=4)
-            cur += timedelta(days=4)
+            yield cur, cur + timedelta(days=8)
+            cur += timedelta(days=8)
 
 
     # get list of daily slices
