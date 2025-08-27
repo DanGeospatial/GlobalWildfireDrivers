@@ -53,17 +53,18 @@ def get_wildfire(start: datetime, end: datetime):
     dataset = ee.ImageCollection("FIRMS").filter(ee.Filter.date(
         start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('T21_mean')
 
-    fires = dataset.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
+    if dataset.size().getInfo() == 0:
+        dataset_fires = dataset.select('T21_mean').constant(0).reproject(crs='EPSG:4326', scale=scale)
+    else:
+        fires = dataset.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
 
-    minmax_fires = fires.select(['T21_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
-                                                                            geometry=country_geom, scale=100000)
-    # TODO bug remains in this function: Number.gt: Parameter 'left' is required and may not be null
-    if ee.Algorithms.If(ee.Number(minmax_fires.get('T21_mean_min')).gt(ee.Number(0.1)), 'True', 'False').getInfo()  == 'True':
+        minmax_fires = fires.select(['T21_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+                                                               geometry=country_geom, scale=100000)
+
         dataset_fires = fires.select(['T21_mean']).unitScale(ee.Number(minmax_fires.
         get(
             'T21_mean_min')).subtract(0.1), ee.Number(minmax_fires.get('T21_mean_max')))
-    else:
-        dataset_fires = fires.select('T21_mean').constant(0)
+
 
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
@@ -219,8 +220,8 @@ def slice_daily(start: datetime, end: datetime):
 
 
 if __name__=='__main__':
-    start_time = datetime.fromisoformat('2001-01-01')
-    end_time = datetime.fromisoformat('2016-12-15')
+    start_time = datetime.fromisoformat('2001-04-01')
+    end_time = datetime.fromisoformat('2001-07-15')
 
     scale = 5566
 
