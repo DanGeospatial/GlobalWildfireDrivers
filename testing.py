@@ -9,7 +9,7 @@ end_time_b = datetime.fromisoformat('2017-08-03')
 scale = 5566
 
 ee.Initialize(project='ee-nelson-remote-sensing', url="https://earthengine-highvolume.googleapis.com")
-
+"""
 country_geom = ee.FeatureCollection('projects/ee-nelson-remote-sensing/assets/world_simplified').geometry()
 dataset_list = []
 
@@ -50,3 +50,8 @@ import matplotlib.pyplot as plt
 
 comb.T21_mean.isel(time=1).plot()
 plt.show()
+"""
+if ee.Algorithms.If((ee.Number(0).gt(ee.Number(0.1))), 'True', 'False').getInfo() == 'True':
+    print("Here")
+else:
+    print("Bottom")

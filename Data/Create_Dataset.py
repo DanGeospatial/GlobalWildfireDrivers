@@ -57,9 +57,13 @@ def get_wildfire(start: datetime, end: datetime):
 
     minmax_fires = fires.select(['T21_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
                                                                             geometry=country_geom, scale=100000)
-    dataset_fires = fires.select(['T21_mean']).unitScale(ee.Number(minmax_fires.
-    get(
-        'T21_mean_min')).subtract(0.1), ee.Number(minmax_fires.get('T21_mean_max')))
+    # TODO bug remains in this function: Number.gt: Parameter 'left' is required and may not be null
+    if ee.Algorithms.If(ee.Number(minmax_fires.get('T21_mean_min')).gt(ee.Number(0.1)), 'True', 'False').getInfo()  == 'True':
+        dataset_fires = fires.select(['T21_mean']).unitScale(ee.Number(minmax_fires.
+        get(
+            'T21_mean_min')).subtract(0.1), ee.Number(minmax_fires.get('T21_mean_max')))
+    else:
+        dataset_fires = fires.select('T21_mean').constant(0)
 
     def set_time(img):
         return img.set('system:time_start', ee.Date(start.isoformat()).millis())
@@ -163,7 +167,6 @@ def get_ecology(start: datetime, end: datetime):
     dataset_es = ee.ImageCollection("CAS/IGSNRR/PML/V2_v018").filter(ee.Filter.date(
         start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('Es_mean')
 
-
     evi = dataset_evi.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
 
     minmax_evi = evi.select(['EVI_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
@@ -212,12 +215,12 @@ def slice_daily(start: datetime, end: datetime):
     merged_xr = xr.merge([get_climate(start=start, end=end), get_wildfire(start=start, end=end),
                           get_landcover(start=start), get_topography(start=start), get_ecology(start=start, end=end)])
 
-    return merged_xr
+    return merged_xr.fillna(0)
 
 
 if __name__=='__main__':
     start_time = datetime.fromisoformat('2001-01-01')
-    end_time = datetime.fromisoformat('2001-02-20')
+    end_time = datetime.fromisoformat('2016-12-15')
 
     scale = 5566
 
@@ -249,12 +252,12 @@ if __name__=='__main__':
 
         # Move the limit one day forward if we want to include the last day
         if inclusive_end:
-            limit += timedelta(days=14)
+            limit += timedelta(days=15)
 
         while cur < limit:
             # Yield the slice (start, end_of_slice)
-            yield cur, cur + timedelta(days=14)
-            cur += timedelta(days=14)
+            yield cur, cur + timedelta(days=15)
+            cur += timedelta(days=15)
 
 
     # get list of daily slices
