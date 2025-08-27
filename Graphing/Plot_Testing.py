@@ -8,5 +8,5 @@ with dask.config.set(**{'array.slicing.split_large_chunks': True}):
     ds = xr.open_zarr("/mnt/d/global_fire.zarr")
     print(ds)
 
-ds.GPP_mean.isel(time=3).plot(x="lon", y="lat")
+ds.heat_index_mean.isel(time=0).plot(x="lon", y="lat")
 plt.show()

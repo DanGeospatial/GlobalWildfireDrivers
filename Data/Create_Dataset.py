@@ -13,15 +13,18 @@ def get_climate(start: datetime, end: datetime):
     dataset = ee.ImageCollection('UCSB-CHG/CHIRTS/DAILY').filter(ee.Filter.date(
         start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean())
 
-    minmax_mtmp = dataset.select(['minimum_temperature_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+    maxtmp_clamp = dataset.select(['maximum_temperature_mean']).clamp(-89, 60)
+    mintmp_clamp = dataset.select(['minimum_temperature_mean']).clamp(-89, 60)
+
+    minmax_mtmp = mintmp_clamp.select(['minimum_temperature_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
                                                                             geometry=country_geom, scale=100000)
-    dataset_mtmp = dataset.select(['minimum_temperature_mean']).unitScale(ee.Number(minmax_mtmp.
+    dataset_mtmp = mintmp_clamp.select(['minimum_temperature_mean']).unitScale(ee.Number(minmax_mtmp.
                                                                                     get(
         'minimum_temperature_mean_min')), ee.Number(minmax_mtmp.get('minimum_temperature_mean_max')))
 
-    minmax_maxtmp = dataset.select(['maximum_temperature_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+    minmax_maxtmp = maxtmp_clamp.select(['maximum_temperature_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
                                                                             geometry=country_geom, scale=100000)
-    dataset_maxtmp = dataset.select(['maximum_temperature_mean']).unitScale(ee.Number(minmax_maxtmp.
+    dataset_maxtmp = maxtmp_clamp.select(['maximum_temperature_mean']).unitScale(ee.Number(minmax_maxtmp.
                                                                                     get(
         'maximum_temperature_mean_min')), ee.Number(minmax_maxtmp.get('maximum_temperature_mean_max')))
 
@@ -51,19 +54,18 @@ def get_climate(start: datetime, end: datetime):
 
 def get_wildfire(start: datetime, end: datetime):
     dataset = ee.ImageCollection("FIRMS").filter(ee.Filter.date(
-        start.isoformat(), end.isoformat())).reduce(ee.Reducer.mean()).select('T21_mean')
+        start.isoformat(), end.isoformat()))
+    dataset_mean = dataset.reduce(ee.Reducer.mean()).select('T21_mean')
+    fires = dataset_mean.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
 
-    if dataset.size().getInfo() == 0:
-        dataset_fires = dataset.select('T21_mean').constant(0).reproject(crs='EPSG:4326', scale=scale)
+    minmax_fires = fires.select(['T21_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
+                                                           geometry=country_geom, scale=100000)
+
+    if minmax_fires.get('T21_mean_min').getInfo() is None:
+        dataset_fires = ee.Image.constant(0).rename('T21_mean').reproject(crs='EPSG:4326', scale=scale)
     else:
-        fires = dataset.resample('bilinear').reproject(crs='EPSG:4326', scale=scale)
-
-        minmax_fires = fires.select(['T21_mean']).reduceRegion(reducer=ee.Reducer.minMax(),
-                                                               geometry=country_geom, scale=100000)
-
         dataset_fires = fires.select(['T21_mean']).unitScale(ee.Number(minmax_fires.
-        get(
-            'T21_mean_min')).subtract(0.1), ee.Number(minmax_fires.get('T21_mean_max')))
+        get('T21_mean_min')).subtract(0.1), ee.Number(minmax_fires.get('T21_mean_max')))
 
 
     def set_time(img):
@@ -216,12 +218,12 @@ def slice_daily(start: datetime, end: datetime):
     merged_xr = xr.merge([get_climate(start=start, end=end), get_wildfire(start=start, end=end),
                           get_landcover(start=start), get_topography(start=start), get_ecology(start=start, end=end)])
 
-    return merged_xr.fillna(0)
+    return merged_xr
 
 
 if __name__=='__main__':
-    start_time = datetime.fromisoformat('2001-04-01')
-    end_time = datetime.fromisoformat('2001-07-15')
+    start_time = datetime.fromisoformat('2001-01-01')
+    end_time = datetime.fromisoformat('2016-12-15')
 
     scale = 5566
 
@@ -267,5 +269,6 @@ if __name__=='__main__':
         dataset_list.append(slice_daily(start=day[0], end=day[1]))
 
     dataset_combined = xr.combine_by_coords(dataset_list)
+    dataset_filled = dataset_combined.fillna(0)
     print(dataset_combined)
-    xr.Dataset.to_zarr(dataset_combined, store="/mnt/d/global_fire.zarr", mode="w-")
+    xr.Dataset.to_zarr(dataset_filled, store="/mnt/d/global_fire.zarr", mode="w-")
